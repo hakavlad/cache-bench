@@ -1,0 +1,209 @@
+#!/usr/bin/env python3
+"""
+Usage:
+cache-bench --path testdir1 --write 300 --log bench.log
+cache-bench --path testdir1 --read 20000 --log bench.log
+"""
+
+from argparse import ArgumentParser
+from os import fsync, getpid, kill, listdir, mkdir, path
+from random import choice, random
+from signal import SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGUSR1, signal
+from sys import exit, stdout
+from time import monotonic
+
+
+def log(*msg):
+    """
+    """
+    print(*msg)
+    if separate_log:
+        logging.info(*msg)
+
+
+def dir_writer():
+    """
+    """
+    try:
+        log('mkdir {}'.format(d_path))
+        mkdir(d_path)
+    except Exception as e:
+        log(e)
+        exit(1)
+
+    STRING_MIB = '\n' * MIB
+
+    for i in range(w_num):
+        f_path = d_path + '/' + str(random())
+        with open(f_path, 'w') as f:
+            f.write(STRING_MIB)
+            fsync(f.fileno())
+        log('written {}; total size: {}M'.format(f_path, i + 1))
+
+    log('OK')
+    exit()
+
+
+def dir_reader():
+    """
+    """
+    try:
+        d_list = listdir(d_path)
+    except Exception as e:
+        log(e)
+        exit(1)
+
+    d_size = 0
+    rf_num = 0
+
+    for f_name in d_list:
+        f_path = d_path + '/' + f_name
+        if path.isfile(f_path):
+            d_size += path.getsize(f_path)
+            rf_num += 1
+
+    log('found {} regular files in {}, total size: {}M'.format(
+        rf_num, d_path, round(d_size / MIB, 1)))
+
+    if d_size == 0:
+        log('size = 0, nothing to read')
+        exit(1)
+
+    ex_list = []
+    summa = 0
+
+    log('setting self oom_score_adj=1000')
+
+    with open('/proc/self/oom_score_adj', 'w') as f:
+        f.write('1000\n')
+
+    log('reading files from the directory {}'.format(d_path))
+
+    t0 = monotonic()
+
+    while True:
+        fname = choice(d_list)
+        f_path = d_path + '/' + fname
+
+        try:
+            with open(f_path, 'rb') as f:
+                content = f.read()
+        except Exception as e:
+            log(e)
+            continue
+
+        ex_list.append(content)
+        summa += path.getsize(f_path)
+        t = monotonic() - t0
+
+        log('read {}M ({}%) in {}s (avg {}M/s); file {}'.format(
+            round(summa / MIB, 1),
+            round(summa / MIB / r_num * 100, 1),
+            round(t, 1),
+            round(summa / MIB / t, 1),
+            fname))
+        if summa >= r_num * MIB:
+            break
+
+    log('--')
+    log('read {}M in {}s (avg {}M/s); src: {} files, {}M'.format(
+        round(summa / MIB, 1),
+        round(t, 1),
+        round(summa / MIB / t, 1),
+        rf_num,
+        round(d_size / MIB, 1)))
+    log('OK')
+    stdout.flush()
+    kill(getpid(), SIGUSR1)
+
+
+def signal_handler(signum, frame):
+    """
+    """
+    def signal_handler_inner(signum, frame):
+        pass
+
+    for i in sig_list:
+        signal(i, signal_handler_inner)
+
+    log('Got signal', signum)
+    exit()
+
+
+parser = ArgumentParser()
+
+parser.add_argument(
+    '-p',
+    '--path',
+    help="path to the directory to write or read files",
+    default='testdir1',
+    type=str
+)
+
+parser.add_argument(
+    '-r',
+    '--read',
+    help="how many mebibytes will be read from the files in the directory",
+    default='0',
+    type=float
+)
+
+parser.add_argument(
+    '-w',
+    '--write',
+    help="the number of mebibyte files to be written to the directory",
+    default='0',
+    type=int
+)
+
+
+parser.add_argument(
+    '-l',
+    '--log',
+    help="""path to the log file""",
+    default=None,
+    type=str
+)
+
+
+args = parser.parse_args()
+
+d_path = args.path
+w_num = args.write
+r_num = args.read
+log_file = args.log
+
+
+if log_file is None:
+    separate_log = False
+else:
+    separate_log = True
+
+    import logging
+
+    try:
+        logging.basicConfig(
+            filename=log_file,
+            level=logging.INFO,
+            format="%(asctime)s: %(message)s")
+    except Exception as e:
+        print(e)
+        exit(1)
+
+
+MIB = 1024**2
+
+sig_list = [SIGTERM, SIGINT, SIGQUIT, SIGHUP]
+
+for i in sig_list:
+    signal(i, signal_handler)
+
+if w_num > 0:
+    dir_writer()
+
+if r_num > 0:
+    dir_reader()
+
+log('invalid input')
+
+exit(1)
