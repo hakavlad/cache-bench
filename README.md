@@ -1,6 +1,8 @@
 
 # cache-bench
 
+[![Total alerts](https://img.shields.io/lgtm/alerts/g/hakavlad/cache-bench.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/hakavlad/cache-bench/alerts/)
+
 Explore the impact of virtual memory settings on caching efficiency on Linux systems under memory pressure.
 
 `cache-bench` is a Python script that can: 
