@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-"""
-Usage:
-cache-bench --path testdir1 --write 300 --log bench.log
-cache-bench --path testdir1 --read 20000 --log bench.log
-"""
 
 from argparse import ArgumentParser
-from os import fsync, getpid, kill, listdir, mkdir, path
-from random import choice, random
-from signal import SIGHUP, SIGINT, SIGQUIT, SIGTERM, SIGUSR1, signal
+from mmap import ACCESS_READ, mmap
+from os import _exit, fsync, path
+from random import random
+from signal import SIGHUP, SIGINT, SIGQUIT, SIGTERM, signal
 from sys import exit, stdout
 from time import monotonic
 
@@ -21,102 +17,6 @@ def log(*msg):
         logging.info(*msg)
 
 
-def dir_writer():
-    """
-    """
-    try:
-        log('mkdir {}'.format(d_path))
-        mkdir(d_path)
-    except Exception as e:
-        log(e)
-        exit(1)
-
-    STRING_MIB = '\n' * MIB
-
-    for i in range(w_num):
-        f_path = d_path + '/' + str(random())
-        with open(f_path, 'w') as f:
-            f.write(STRING_MIB)
-            fsync(f.fileno())
-        log('written {}; total size: {}M'.format(f_path, i + 1))
-
-    log('OK')
-    exit()
-
-
-def dir_reader():
-    """
-    """
-    try:
-        d_list = listdir(d_path)
-    except Exception as e:
-        log(e)
-        exit(1)
-
-    d_size = 0
-    rf_num = 0
-
-    for f_name in d_list:
-        f_path = d_path + '/' + f_name
-        if path.isfile(f_path):
-            d_size += path.getsize(f_path)
-            rf_num += 1
-
-    log('found {} regular files in {}, total size: {}M'.format(
-        rf_num, d_path, round(d_size / MIB, 1)))
-
-    if d_size == 0:
-        log('size = 0, nothing to read')
-        exit(1)
-
-    ex_list = []
-    summa = 0
-
-    log('setting self oom_score_adj=1000')
-
-    with open('/proc/self/oom_score_adj', 'w') as f:
-        f.write('1000\n')
-
-    log('reading files from the directory {}'.format(d_path))
-
-    t0 = monotonic()
-
-    while True:
-        fname = choice(d_list)
-        f_path = d_path + '/' + fname
-
-        try:
-            with open(f_path, 'rb') as f:
-                content = f.read()
-        except Exception as e:
-            log(e)
-            continue
-
-        ex_list.append(content)
-        summa += path.getsize(f_path)
-        t = monotonic() - t0
-
-        log('read {}M ({}%) in {}s (avg {}M/s); file {}'.format(
-            round(summa / MIB, 1),
-            round(summa / MIB / r_num * 100, 1),
-            round(t, 1),
-            round(summa / MIB / t, 1),
-            fname))
-        if summa >= r_num * MIB:
-            break
-
-    log('--')
-    log('read {}M in {}s (avg {}M/s); src: {} files, {}M'.format(
-        round(summa / MIB, 1),
-        round(t, 1),
-        round(summa / MIB / t, 1),
-        rf_num,
-        round(d_size / MIB, 1)))
-    log('OK')
-    stdout.flush()
-    kill(getpid(), SIGUSR1)
-
-
 def signal_handler(signum, frame):
     """
     """
@@ -126,41 +26,194 @@ def signal_handler(signum, frame):
     for i in sig_list:
         signal(i, signal_handler_inner)
 
-    log('Got signal', signum)
+    log('Got signal {}, exit.'.format(signum))
+    stdout.flush()
+    _exit(0)
+
+
+def writer():
+    """
+    """
+    STRING_MIB = '\n' * M
+
+    log('file: {}'.format(f_path))
+    log('file size: {} MiB'.format(w_num))
+    log('writing file...')
+
+    with open(f_path, 'w') as f:
+        for _ in range(w_num):
+            f.write(STRING_MIB)
+
+        log('fsync...')
+        fsync(f.fileno())
+
+    log('OK')
     exit()
+
+
+def reader():
+    """
+    """
+    f_size = path.getsize(f_path)
+
+    log('file: {}'.format(f_path))
+    log('file size: {} MiB'.format(round(f_size / M, 1)))
+    if separate_log:
+        log('log file: {}'.format(log_file))
+    log('chunk: {} KiB, mmap: {}, preread: {}, output (log) interval'
+        ': {}s'.format(chunk, m, pre, interval))
+
+    if preread:
+        log('prereading (caching) file...')
+        with open(f_path, 'rb') as f:
+            if mapped:
+                f = mmap(f.fileno(), 0, access=ACCESS_READ)
+            c0 = monotonic()
+            while True:
+                if len(f.read(M)) == 0:
+                    break
+            c1 = monotonic()
+            log('file read in {}s'.format(round(c1 - c0, 3)))
+
+    with open(f_path, 'rb') as f:
+
+        if mapped:
+            f = mmap(f.fileno(), 0, access=ACCESS_READ)
+
+        log('reading {} MiB from the file...'.format(r_num))
+        log('--')
+
+        with open('/proc/self/oom_score_adj', 'w') as self_oom_score_adj:
+            self_oom_score_adj.write('1000\n')
+
+        ex_list = []
+        r_size = 0
+        t0 = monotonic()
+        t_old = monotonic()
+        s_old = 0
+
+        while True:
+            f.seek(int(f_size * random()))
+            ch = f.read(CHUNK)
+            r_size += len(ch)
+            ex_list.append(ch)
+
+            t = monotonic()
+            dt = t - t_old
+            if dt >= interval:
+
+                d_s = r_size - s_old
+                t_old = t
+                s_old = r_size
+                dt0 = t - t0
+                log('read {}M in {}s ({}M/s); total {}M, {}% in {}s; '
+                    'avg {}M/s'.format(
+                        round(d_s / M, 1),
+                        round(dt, 1),
+                        round(d_s / M / dt, 1),
+                        round(r_size / M, 1),
+                        round((r_size / r_bytes) * 100),
+                        round(dt0, 1),
+                        round(r_size / M / dt0, 1)
+                    ))
+
+            if r_size >= r_bytes:
+
+                d_s = r_size - s_old
+                t_old = t
+                s_old = r_size
+                dt0 = t - t0
+                log('read {}M in {}s ({}M/s); total {}M, {}% in {}s; '
+                    'avg {}M/s'.format(
+                        round(d_s / M, 1),
+                        round(dt, 1),
+                        round(d_s / M / dt, 1),
+                        round(r_size / M, 1),
+                        round((r_size / r_bytes) * 100),
+                        round(dt0, 1),
+                        round(r_size / M / dt0, 1)
+                    ))
+
+                ddt = monotonic() - t0
+                log('--')
+                log('total read {} MiB in {}s (avg {} MiB/s)'.format(
+                    round(r_size / M, 1),
+                    round(ddt, 1),
+                    round(r_size / M / ddt, 1)
+                ))
+                stdout.flush()
+                _exit(0)
 
 
 parser = ArgumentParser()
 
+
 parser.add_argument(
-    '-p',
-    '--path',
-    help="path to the directory to write or read files",
-    default='testdir1',
+    '-f',
+    '--file',
+    help='the path to the file to be written or read',
+    default='testfile.bench',
     type=str
 )
+
 
 parser.add_argument(
     '-r',
     '--read',
-    help="how many mebibytes will be read from the files in the directory",
-    default='0',
+    help='how many mebibytes to read from the file',
+    default=0,
     type=float
 )
 
 parser.add_argument(
     '-w',
     '--write',
-    help="the number of mebibyte files to be written to the directory",
-    default='0',
+    help='the size of the file being written',
+    default=0,
     type=int
+)
+
+
+parser.add_argument(
+    '-c',
+    '--chunk',
+    help='chunk size in KiB',
+    default=64,
+    type=int
+)
+
+
+parser.add_argument(
+    '-m',
+    '--mmap',
+    help='mmap the file (0 | 1)',
+    default=0,
+    type=int
+)
+
+
+parser.add_argument(
+    '-p',
+    '--preread',
+    help='preread the file (0 | 1)',
+    default=1,
+    type=int
+)
+
+
+parser.add_argument(
+    '-i',
+    '--interval',
+    help='output (log) interval in seconds',
+    default=1,
+    type=float
 )
 
 
 parser.add_argument(
     '-l',
     '--log',
-    help="""path to the log file""",
+    help='path to the log file',
     default=None,
     type=str
 )
@@ -168,9 +221,14 @@ parser.add_argument(
 
 args = parser.parse_args()
 
-d_path = args.path
-w_num = args.write
+
+f_path = args.file
 r_num = args.read
+w_num = args.write
+chunk = args.chunk
+m = args.mmap
+pre = args.preread
+interval = args.interval
 log_file = args.log
 
 
@@ -191,18 +249,61 @@ else:
         exit(1)
 
 
-MIB = 1024**2
+if pre == 0:
+    preread = False
+elif pre == 1:
+    preread = True
+else:
+    log('invalid -p value')
+    exit(1)
+
+
+if m == 0:
+    mapped = False
+elif m == 1:
+    mapped = True
+else:
+    log('invalid -m value')
+    exit(1)
+
+
+K = 1024
+M = K**2
+r_bytes = M * r_num
+CHUNK = K * chunk
+
 
 sig_list = [SIGTERM, SIGINT, SIGQUIT, SIGHUP]
 
 for i in sig_list:
     signal(i, signal_handler)
 
+
 if w_num > 0:
-    dir_writer()
+
+    if path.exists(f_path):
+        log('"{}" already exists!'.format(f_path))
+        exit(1)
+
+    try:
+        with open(f_path, 'wb') as f:
+            f.write(b'')
+    except Exception as e:
+        log(e)
+        exit(1)
+
+    writer()
 
 if r_num > 0:
-    dir_reader()
+
+    try:
+        with open(f_path, 'rb') as f:
+            f.read(1)
+    except Exception as e:
+        log(e)
+        exit(1)
+
+    reader()
 
 log('invalid input')
 
