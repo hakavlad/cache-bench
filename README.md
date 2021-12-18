@@ -19,14 +19,23 @@ Options:
 
 ```
 $ cache-bench -h
-usage: cache-bench [-h] [-p PATH] [-r READ] [-w WRITE] [-l LOG]
+usage: cache-bench [-h] [-f FILE] [-r READ] [-w WRITE] [-m MMAP] [-p PREREAD] [-b BLOAT] [-c CHUNK] [-i INTERVAL] [-l LOG]
 
 optional arguments:
   -h, --help            show this help message and exit
-  -p PATH, --path PATH  path to the directory to write or read files
-  -r READ, --read READ  how many mebibytes will be read from the files in the directory
+  -f FILE, --file FILE  the path to the file to be written or read
+  -r READ, --read READ  how many mebibytes to read from the file
   -w WRITE, --write WRITE
-                        the number of mebibyte files to be written to the directory
+                        the size of the file being written
+  -m MMAP, --mmap MMAP  mmap the file (0 | 1)
+  -p PREREAD, --preread PREREAD
+                        preread the file (0 | 1)
+  -b BLOAT, --bloat BLOAT
+                        bloat process memory (0 | 1)
+  -c CHUNK, --chunk CHUNK
+                        chunk size in KiB
+  -i INTERVAL, --interval INTERVAL
+                        output interval in seconds
   -l LOG, --log LOG     path to the log file
 ```
 
@@ -57,57 +66,47 @@ Optionally, you can specify the path to the log file.
 ## Output examples
 
 ```
-$ cache-bench -w 5
-mkdir testdir1
-written testdir1/0.8413038645799809; total size: 1M
-written testdir1/0.5403515973223167; total size: 2M
-written testdir1/0.48694162517240913; total size: 3M
-written testdir1/0.336817161455191; total size: 4M
-written testdir1/0.18382311079398506; total size: 5M
+$ cache-bench -w 200
+starting cache-bench
+  file: testfile.bench
+  file size: 200 MiB
+writing the file...
+fsync...
 OK
 ```
 
 ```
-$ cache-bench -r 10
-found 5 regular files in testdir1, total size: 5.0M
-setting self oom_score_adj=1000
-reading files from the directory testdir1
-read 1.0M (10.0%) in 0.0s (avg 24.6M/s); file 0.336817161455191
-read 2.0M (20.0%) in 0.0s (avg 48.4M/s); file 0.336817161455191
-read 3.0M (30.0%) in 0.1s (avg 42.9M/s); file 0.8413038645799809
-read 4.0M (40.0%) in 0.1s (avg 41.2M/s); file 0.48694162517240913
-read 5.0M (50.0%) in 0.1s (avg 42.0M/s); file 0.18382311079398506
-read 6.0M (60.0%) in 0.1s (avg 40.1M/s); file 0.5403515973223167
-read 7.0M (70.0%) in 0.2s (avg 46.3M/s); file 0.18382311079398506
-read 8.0M (80.0%) in 0.2s (avg 52.7M/s); file 0.336817161455191
-read 9.0M (90.0%) in 0.2s (avg 59.0M/s); file 0.18382311079398506
-read 10.0M (100.0%) in 0.2s (avg 65.2M/s); file 0.8413038645799809
---
-read 10.0M in 0.2s (avg 65.2M/s); src: 5 files, 5.0M
-OK
-User defined signal 1
+$ cache-bench -r 8000 -c 32 -m 1 -p 1 -b 1
+starting cache-bench
+  file: testfile.bench
+  file size: 200.0 MiB
+  log file is not set
+  output interval: 2s
+  mmap: 1, preread: 1, bloat: 1, chunk: 32 KiB
+prereading (caching) the file...
+  preread 200.0 MiB (100.0%) in 1.7s
+reading 8000.0 MiB from the file...
+  read 3053.4M in 2.0s (1526.7M/s); total 3053.4M in 2.0s, avg 1526.7M/s
+  read 3077.7M in 2.0s (1538.9M/s); total 6131.2M in 4.0s, avg 1532.8M/s
+  read 1868.8M in 1.2s (1504.4M/s); total 8000.0M in 5.2s, avg 1526.1M/s
+total read 8000.0 MiB in 5.2s (avg 1526.0 MiB/s)
 ```
 
 Log file example:
 ```
-2021-05-30 21:47:56,084: mkdir testdir1
-2021-05-30 21:47:56,211: written testdir1/0.9860985015646311; total size: 1M
-2021-05-30 21:47:56,289: written testdir1/0.0691916965192153; total size: 2M
-2021-05-30 21:47:56,377: written testdir1/0.27868153831296383; total size: 3M
-2021-05-30 21:47:56,455: written testdir1/0.7341114648416274; total size: 4M
-2021-05-30 21:47:56,533: written testdir1/0.5363495159203434; total size: 5M
-2021-05-30 21:47:56,533: OK
-2021-05-30 21:48:23,193: found 5 regular files in testdir1, total size: 5.0M
-2021-05-30 21:48:23,199: setting self oom_score_adj=1000
-2021-05-30 21:48:23,199: reading files from the directory testdir1
-2021-05-30 21:48:23,229: read 1.0M (20.0%) in 0.0s (avg 32.9M/s); file 0.7341114648416274
-2021-05-30 21:48:23,296: read 2.0M (40.0%) in 0.1s (avg 20.8M/s); file 0.0691916965192153
-2021-05-30 21:48:23,298: read 3.0M (60.0%) in 0.1s (avg 30.3M/s); file 0.0691916965192153
-2021-05-30 21:48:23,299: read 4.0M (80.0%) in 0.1s (avg 40.1M/s); file 0.7341114648416274
-2021-05-30 21:48:23,352: read 5.0M (100.0%) in 0.2s (avg 32.6M/s); file 0.27868153831296383
-2021-05-30 21:48:23,353: --
-2021-05-30 21:48:23,353: read 5.0M in 0.2s (avg 32.6M/s); src: 5 files, 5.0M
-2021-05-30 21:48:23,354: OK
+2021-12-18 19:44:14,306: starting cache-bench
+2021-12-18 19:44:14,307:   file: testfile.bench
+2021-12-18 19:44:14,307:   file size: 200.0 MiB
+2021-12-18 19:44:14,307:   log file: /tmpfs/log
+2021-12-18 19:44:14,307:   output interval: 2s
+2021-12-18 19:44:14,308:   mmap: 1, preread: 1, bloat: 1, chunk: 32 KiB
+2021-12-18 19:44:14,308: prereading (caching) the file...
+2021-12-18 19:44:16,041:   preread 200.0 MiB (100.0%) in 1.7s
+2021-12-18 19:44:16,046: reading 8000.0 MiB from the file...
+2021-12-18 19:44:18,047:   read 3071.6M in 2.0s (1535.8M/s); total 3071.6M in 2.0s, avg 1535.8M/s
+2021-12-18 19:44:20,047:   read 3111.0M in 2.0s (1555.5M/s); total 6182.6M in 4.0s, avg 1545.6M/s
+2021-12-18 19:44:21,233:   read 1817.4M in 1.2s (1531.6M/s); total 8000.0M in 5.2s, avg 1542.4M/s
+2021-12-18 19:44:21,233: total read 8000.0 MiB in 5.2s (avg 1542.4 MiB/s)
 ```
 
 ## Requirements
