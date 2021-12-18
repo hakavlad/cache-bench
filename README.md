@@ -41,19 +41,19 @@ How many mebibytes to read from the specified file.
 Size of the file being written. This is just an auxiliary option to create a file of the desired size.
 
 #### -m MMAP, --mmap MMAP
-mmap the file. Valid values: 0 and 1. Default value: 0. If set to 1, the file will be memory-mapped before reading.
+mmap the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the file will be memory-mapped the reading will be done from the memory-mapped file object.
 
 #### -p PREREAD, --preread PREREAD
-Preread the file. Valid values: 0 and 1. Default value: 0. If set to 1, the file will first be preread completely sequentially by mebibyte chunks.
+Preread the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the file will first be preread completely sequentially by mebibyte chunks.
 
 #### -b BLOAT, --bloat BLOAT
-Bloat process memory. Valid values: 0 and 1. Default value: 0. If set to 1, the chunks will be added to the list and the memory consumed by the process will increase.
+Bloat process memory. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the chunks will be added to the list and the memory consumed by the process will increase.
 
 #### -c CHUNK, --chunk CHUNK
-Chunk size in KiB. The file will be read by chunks of the specified size.
+Chunk size in KiB. Default value: `64`. The file will be read by chunks of the specified size.
 
 #### -i INTERVAL, --interval INTERVAL
-Output (log) interval in seconds. Default value: 2.
+Output (log) interval in seconds. Default value: `2`.
 
 #### -l LOG, --log LOG
 Path to the log file. The output will be written with timestamps.
