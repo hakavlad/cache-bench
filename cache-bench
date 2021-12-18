@@ -26,7 +26,7 @@ def signal_handler(signum, frame):
     for i in sig_list:
         signal(i, signal_handler_inner)
 
-    log('Got signal {}, exit.'.format(signum))
+    log('got signal {}'.format(signum))
     stdout.flush()
     _exit(0)
 
@@ -36,44 +36,77 @@ def writer():
     """
     STRING_MIB = '\n' * M
 
-    log('file: {}'.format(f_path))
-    log('file size: {} MiB'.format(w_num))
-    log('writing file...')
+    log('starting cache-bench')
+    log('  file: {}'.format(f_path))
+    log('  file size: {} MiB'.format(w_num))
+    log('writing the file...')
 
     with open(f_path, 'w') as f:
         for _ in range(w_num):
             f.write(STRING_MIB)
-
         log('fsync...')
         fsync(f.fileno())
-
     log('OK')
     exit()
+
+
+def prereadf(f_size):
+    """
+    """
+    log('prereading (caching) the file...')
+
+    with open(f_path, 'rb') as f:
+        if mapped:
+            f = mmap(f.fileno(), 0, access=ACCESS_READ)
+
+        r_size = 0
+        pm_start = monotonic()
+        pm_old = pm_start
+
+        while True:
+            r_len = len(f.read(M))
+            pm_new = monotonic()
+            r_size += r_len
+
+            if pm_new - pm_old > interval:
+                pm_old = pm_new
+                log('  preread {} MiB ({}%) in {}s'.format(
+                    round(r_size / M, 1),
+                    round(r_size / f_size * 100, 1),
+                    round(pm_new - pm_start, 1)))
+
+            if r_len == 0:
+                log('  preread {} MiB ({}%) in {}s'.format(
+                    round(r_size / M, 1),
+                    round(r_size / f_size * 100, 1),
+                    round(pm_new - pm_start, 1)))
+                break
 
 
 def reader():
     """
     """
+    log('starting cache-bench')
     f_size = path.getsize(f_path)
 
-    log('file: {}'.format(f_path))
-    log('file size: {} MiB'.format(round(f_size / M, 1)))
+    log('  file: {}'.format(f_path))
+    log('  file size: {} MiB'.format(round(f_size / M, 1)))
+
+    if f_size == 0:
+        log('the file has zero size, nothing to read!')
+        exit(1)
+
     if separate_log:
-        log('log file: {}'.format(log_file))
-    log('chunk: {} KiB, mmap: {}, preread: {}, output (log) interval'
-        ': {}s'.format(chunk, m, pre, interval))
+        log('  log file: {}'.format(log_file))
+    else:
+        log('  log file is not set')
+
+    log('  output interval: {}s'.format(interval))
+    log('  mmap: {}, preread: {}, bloat: {}, chunk: {} KiB'.format(
+        m, pre, bloat, chunk))
 
     if preread:
-        log('prereading (caching) file...')
-        with open(f_path, 'rb') as f:
-            if mapped:
-                f = mmap(f.fileno(), 0, access=ACCESS_READ)
-            c0 = monotonic()
-            while True:
-                if len(f.read(M)) == 0:
-                    break
-            c1 = monotonic()
-            log('file read in {}s'.format(round(c1 - c0, 3)))
+        prereadf(f_size)
 
     with open(f_path, 'rb') as f:
 
@@ -81,22 +114,26 @@ def reader():
             f = mmap(f.fileno(), 0, access=ACCESS_READ)
 
         log('reading {} MiB from the file...'.format(r_num))
-        log('--')
 
-        with open('/proc/self/oom_score_adj', 'w') as self_oom_score_adj:
-            self_oom_score_adj.write('1000\n')
+        if bloating:
+            with open('/proc/self/oom_score_adj', 'w') as self_oom_score_adj:
+                self_oom_score_adj.write('1000\n')
 
-        ex_list = []
+        if bloating:
+            ex_list = []
+
         r_size = 0
         t0 = monotonic()
-        t_old = monotonic()
+        t_old = t0
         s_old = 0
 
         while True:
             f.seek(int(f_size * random()))
             ch = f.read(CHUNK)
             r_size += len(ch)
-            ex_list.append(ch)
+
+            if bloating:
+                ex_list.append(ch)
 
             t = monotonic()
             dt = t - t_old
@@ -106,13 +143,12 @@ def reader():
                 t_old = t
                 s_old = r_size
                 dt0 = t - t0
-                log('read {}M in {}s ({}M/s); total {}M, {}% in {}s; '
-                    'avg {}M/s'.format(
+                log('  read {}M in {}s ({}M/s); total {}M in {}s, avg '
+                    '{}M/s'.format(
                         round(d_s / M, 1),
                         round(dt, 1),
                         round(d_s / M / dt, 1),
                         round(r_size / M, 1),
-                        round((r_size / r_bytes) * 100),
                         round(dt0, 1),
                         round(r_size / M / dt0, 1)
                     ))
@@ -123,19 +159,17 @@ def reader():
                 t_old = t
                 s_old = r_size
                 dt0 = t - t0
-                log('read {}M in {}s ({}M/s); total {}M, {}% in {}s; '
-                    'avg {}M/s'.format(
+                log('  read {}M in {}s ({}M/s); total {}M in {}s, avg '
+                    '{}M/s'.format(
                         round(d_s / M, 1),
                         round(dt, 1),
                         round(d_s / M / dt, 1),
                         round(r_size / M, 1),
-                        round((r_size / r_bytes) * 100),
                         round(dt0, 1),
                         round(r_size / M / dt0, 1)
                     ))
 
                 ddt = monotonic() - t0
-                log('--')
                 log('total read {} MiB in {}s (avg {} MiB/s)'.format(
                     round(r_size / M, 1),
                     round(ddt, 1),
@@ -147,7 +181,6 @@ def reader():
 
 parser = ArgumentParser()
 
-
 parser.add_argument(
     '-f',
     '--file',
@@ -156,12 +189,11 @@ parser.add_argument(
     type=str
 )
 
-
 parser.add_argument(
     '-r',
     '--read',
     help='how many mebibytes to read from the file',
-    default=0,
+    default=-1,
     type=float
 )
 
@@ -169,19 +201,9 @@ parser.add_argument(
     '-w',
     '--write',
     help='the size of the file being written',
-    default=0,
+    default=-1,
     type=int
 )
-
-
-parser.add_argument(
-    '-c',
-    '--chunk',
-    help='chunk size in KiB',
-    default=64,
-    type=int
-)
-
 
 parser.add_argument(
     '-m',
@@ -191,24 +213,37 @@ parser.add_argument(
     type=int
 )
 
-
 parser.add_argument(
     '-p',
     '--preread',
     help='preread the file (0 | 1)',
-    default=1,
+    default=0,
     type=int
 )
 
+parser.add_argument(
+    '-b',
+    '--bloat',
+    help='bloat process memory (0 | 1)',
+    default=0,
+    type=int
+)
+
+parser.add_argument(
+    '-c',
+    '--chunk',
+    help='chunk size in KiB',
+    default=64,
+    type=int
+)
 
 parser.add_argument(
     '-i',
     '--interval',
-    help='output (log) interval in seconds',
-    default=1,
+    help='output interval in seconds',
+    default=2,
     type=float
 )
-
 
 parser.add_argument(
     '-l',
@@ -218,19 +253,17 @@ parser.add_argument(
     type=str
 )
 
-
 args = parser.parse_args()
-
 
 f_path = args.file
 r_num = args.read
 w_num = args.write
-chunk = args.chunk
 m = args.mmap
 pre = args.preread
+bloat = args.bloat
+chunk = args.chunk
 interval = args.interval
 log_file = args.log
-
 
 if log_file is None:
     separate_log = False
@@ -248,7 +281,6 @@ else:
         print(e)
         exit(1)
 
-
 if pre == 0:
     preread = False
 elif pre == 1:
@@ -257,6 +289,13 @@ else:
     log('invalid -p value')
     exit(1)
 
+if bloat == 0:
+    bloating = False
+elif bloat == 1:
+    bloating = True
+else:
+    log('invalid -b value')
+    exit(1)
 
 if m == 0:
     mapped = False
@@ -266,12 +305,10 @@ else:
     log('invalid -m value')
     exit(1)
 
-
 K = 1024
 M = K**2
-r_bytes = M * r_num
+r_bytes = int(M * r_num)
 CHUNK = K * chunk
-
 
 sig_list = [SIGTERM, SIGINT, SIGQUIT, SIGHUP]
 
@@ -305,6 +342,6 @@ if r_num > 0:
 
     reader()
 
-log('invalid input')
+log('set correct -r or -w option!')
 
 exit(1)
