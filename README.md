@@ -5,17 +5,11 @@
 
 Explore the impact of virtual memory settings on caching efficiency on Linux systems under memory pressure.
 
-`cache-bench` is a Python script that can: 
-- create the specified number of mebibyte files in the specified directory;
-- read the specified volume of files from the directory in random order and add the resulting volume to the list in memory;
-- show time and average reading speed;
-- log results in the specified file.
-
 The script can be used, for example, to assess the impact of virtual memory settings (`vm.swappiness`, `vm.watermark_scale_factor`, Multigenerational LRU Framework etc) on the efficiency of file caching, especially under memory pressure. The script allows you to evaluate the performance of I/O operations under memory pressure.
 
-## Usage
 
-Options:
+
+## Options
 
 ```
 $ cache-bench -h
@@ -39,29 +33,35 @@ optional arguments:
   -l LOG, --log LOG     path to the log file
 ```
 
-Create a directory with the specified number of mebibyte files. 
-```
-cache-bench -w 300
-```
-In this case, 300 mebibyte files will be created in the `testdir1` directory (this is the default name; you can specify a different directory with the `-p` option). 
+#### -h, --help
+show this help message and exit
 
-Drop caches and write dirty cache:
-```sh
-$ drop-caches
-#!/bin/sh -v
-sudo sync
-[sudo] password for user: 
-echo 3 | sudo tee /proc/sys/vm/drop_caches
-3
-```
+#### -f FILE, --file FILE
+path to the file to be read or written
 
-Next, run the test. Be careful when choosing a reading volume: the system can reach OOM or freeze. One useful option is to read as much as needed to move a significant amount of memory to the swap space. Read the files from the directory in random order.
-```
-cache-bench -r 20000
-```
-In this case, 20000 MiB files will be read in random order from the default directory. 
+#### -r READ, --read READ
+how many mebibytes to read from the file
 
-Optionally, you can specify the path to the log file. 
+#### -w WRITE, --write WRITE
+size of the file being written
+
+#### -m MMAP, --mmap MMAP
+mmap the file (0 | 1)
+
+#### -p PREREAD, --preread PREREAD
+preread the file (0 | 1)
+
+#### -b BLOAT, --bloat BLOAT
+bloat process memory (0 | 1)
+
+#### -c CHUNK, --chunk CHUNK
+chunk size in KiB
+
+#### -i INTERVAL, --interval INTERVAL
+output interval in seconds
+
+#### -l LOG, --log LOG
+path to the log file
 
 ## Output examples
 
@@ -144,3 +144,4 @@ Multigenerational LRU Framework at LKML:
 Daemons that can affect file reading performance:
 - [prelockd](https://github.com/hakavlad/prelockd): Lock executables and shared libraries in memory to improve system responsiveness under low-memory conditions;
 - [memavaild](https://github.com/hakavlad/memavaild): Keep amount of available memory by evicting memory of selected cgroups into swap space.
+
