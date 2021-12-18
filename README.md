@@ -23,10 +23,10 @@ usage: cache-bench [-h] [-f FILE] [-r READ] [-w WRITE] [-m MMAP] [-p PREREAD] [-
 
 optional arguments:
   -h, --help            show this help message and exit
-  -f FILE, --file FILE  the path to the file to be written or read
+  -f FILE, --file FILE  path to the file to be read or written
   -r READ, --read READ  how many mebibytes to read from the file
   -w WRITE, --write WRITE
-                        the size of the file being written
+                        size of the file being written
   -m MMAP, --mmap MMAP  mmap the file (0 | 1)
   -p PREREAD, --preread PREREAD
                         preread the file (0 | 1)
@@ -76,7 +76,7 @@ OK
 ```
 
 ```
-$ cache-bench -r 8000 -c 32 -m 1 -p 1 -b 1
+$ cache-bench --read 8000 --chunk 32 --mmap 1 --preread 1 --bloat 1
 starting cache-bench
   file: testfile.bench
   file size: 200.0 MiB
@@ -113,15 +113,16 @@ Log file example:
 
 - Python 3.3+
 
-## Install
+## Installation
+
+Install
 ```sh
-$ git clone https://github.com/hakavlad/cache-bench.git
-$ cd cache-bench
+$ git clone https://github.com/hakavlad/cache-bench.git && cd cache-bench
 $ sudo make install
 ```
 `cache-bench` and `drop-caches` scripts will be installed in `/usr/local/bin`.
 
-## Uninstall
+Uninstall
 ```sh
 $ sudo make uninstall
 ```
