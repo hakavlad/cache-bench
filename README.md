@@ -50,7 +50,7 @@ Preread the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, 
 Bloat process memory. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the chunks will be added to the list and the memory consumed by the process will increase. This option can be used to create memory pressure during tests.
 
 #### -c CHUNK, --chunk CHUNK
-Chunk size in KiB. Default value: `64`. The file will be read by chunks of the specified size.
+Chunk size in KiB. Default value: `64`. The file will be read by chunks of a given size in random order.
 
 #### -i INTERVAL, --interval INTERVAL
 Output (log) interval in seconds. Default value: `2`.
