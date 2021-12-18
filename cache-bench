@@ -103,7 +103,7 @@ def reader():
 
     log('  output interval: {}s'.format(interval))
     log('  mmap: {}, preread: {}, bloat: {}, chunk: {} KiB'.format(
-        m, pre, bloat, chunk))
+        m_map, pre_read, bloat, chunk))
 
     if preread:
         prereadf(f_size)
@@ -184,7 +184,7 @@ parser = ArgumentParser()
 parser.add_argument(
     '-f',
     '--file',
-    help='the path to the file to be written or read',
+    help='path to the file to be read or written',
     default='testfile.bench',
     type=str
 )
@@ -193,15 +193,15 @@ parser.add_argument(
     '-r',
     '--read',
     help='how many mebibytes to read from the file',
-    default=-1,
+    default=0,
     type=float
 )
 
 parser.add_argument(
     '-w',
     '--write',
-    help='the size of the file being written',
-    default=-1,
+    help='size of the file being written',
+    default=0,
     type=int
 )
 
@@ -258,8 +258,8 @@ args = parser.parse_args()
 f_path = args.file
 r_num = args.read
 w_num = args.write
-m = args.mmap
-pre = args.preread
+m_map = args.mmap
+pre_read = args.preread
 bloat = args.bloat
 chunk = args.chunk
 interval = args.interval
@@ -281,12 +281,20 @@ else:
         print(e)
         exit(1)
 
-if pre == 0:
+if m_map == 0:
+    mapped = False
+elif m_map == 1:
+    mapped = True
+else:
+    log('invalid --mmap value')
+    exit(1)
+
+if pre_read == 0:
     preread = False
-elif pre == 1:
+elif pre_read == 1:
     preread = True
 else:
-    log('invalid -p value')
+    log('invalid --preread value')
     exit(1)
 
 if bloat == 0:
@@ -294,16 +302,17 @@ if bloat == 0:
 elif bloat == 1:
     bloating = True
 else:
-    log('invalid -b value')
+    log('invalid --bloat value')
     exit(1)
 
-if m == 0:
-    mapped = False
-elif m == 1:
-    mapped = True
-else:
-    log('invalid -m value')
+if chunk <= 0:
+    log('invalid --chunk value')
     exit(1)
+
+if interval < 0:
+    log('invalid --interval value')
+    exit(1)
+
 
 K = 1024
 M = K**2
@@ -319,7 +328,7 @@ for i in sig_list:
 if w_num > 0:
 
     if path.exists(f_path):
-        log('"{}" already exists!'.format(f_path))
+        log('"{}" already exists'.format(f_path))
         exit(1)
 
     try:
@@ -342,6 +351,6 @@ if r_num > 0:
 
     reader()
 
-log('set correct -r or -w option!')
+log('set correct --read or --write value')
 
 exit(1)
