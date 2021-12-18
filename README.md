@@ -38,16 +38,16 @@ Path to the file to be read or written. Default value: `testfile.bench`.
 How many mebibytes to read from the specified file.
 
 #### -w WRITE, --write WRITE
-Size of the file being written. This is just an auxiliary option to create a file of the desired size.
+The size of the file to create, in mebibytes. This is just an auxiliary option to create a file of the desired size.
 
 #### -m MMAP, --mmap MMAP
-mmap the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the file will be memory-mapped the reading will be done from the memory-mapped file object.
+mmap the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the file will be memory-mapped and the reading will be done from the memory-mapped file object.
 
 #### -p PREREAD, --preread PREREAD
 Preread the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the file will first be preread completely sequentially by mebibyte chunks.
 
 #### -b BLOAT, --bloat BLOAT
-Bloat process memory. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the chunks will be added to the list and the memory consumed by the process will increase.
+Bloat process memory. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the chunks will be added to the list and the memory consumed by the process will increase. This option can be used to create memory pressure during tests.
 
 #### -c CHUNK, --chunk CHUNK
 Chunk size in KiB. Default value: `64`. The file will be read by chunks of the specified size.
@@ -132,9 +132,14 @@ Documentation for `/proc/sys/vm/`:
 - https://www.kernel.org/doc/html/latest/admin-guide/sysctl/vm.html
 
 Multigenerational LRU Framework at LKML:
-- https://lore.kernel.org/lkml/20210313075747.3781593-1-yuzhao@google.com/
-- https://lore.kernel.org/lkml/20210413065633.2782273-1-yuzhao@google.com/
-- https://lore.kernel.org/lkml/20210520065355.2736558-1-yuzhao@google.com/
+- v1: https://lore.kernel.org/lkml/20210313075747.3781593-1-yuzhao@google.com/
+- v2: https://lore.kernel.org/lkml/20210413065633.2782273-1-yuzhao@google.com/
+- v3: https://lore.kernel.org/lkml/20210520065355.2736558-1-yuzhao@google.com/
+- v4: https://lore.kernel.org/lkml/20210818063107.2696454-1-yuzhao@google.com/
+- v5: https://lore.kernel.org/lkml/20211111041510.402534-1-yuzhao@google.com/
+
+le9 patch can be used to protect the specified amount of cache:
+- https://github.com/hakavlad/le9-patch
 
 Daemons that can affect file reading performance:
 - [prelockd](https://github.com/hakavlad/prelockd): Lock executables and shared libraries in memory to improve system responsiveness under low-memory conditions;
