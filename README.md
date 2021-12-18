@@ -7,8 +7,6 @@ Explore the impact of virtual memory settings on caching efficiency on Linux sys
 
 The script can be used, for example, to assess the impact of virtual memory settings (`vm.swappiness`, `vm.watermark_scale_factor`, Multigenerational LRU Framework etc) on the efficiency of file caching, especially under memory pressure. The script allows you to evaluate the performance of I/O operations under memory pressure.
 
-
-
 ## Options
 
 ```
@@ -33,35 +31,32 @@ optional arguments:
   -l LOG, --log LOG     path to the log file
 ```
 
-#### -h, --help
-show this help message and exit
-
 #### -f FILE, --file FILE
-path to the file to be read or written
+Path to the file to be read or written. Default value: `testfile.bench`.
 
 #### -r READ, --read READ
-how many mebibytes to read from the file
+How many mebibytes to read from the specified file.
 
 #### -w WRITE, --write WRITE
-size of the file being written
+Size of the file being written. This is just an auxiliary option to create a file of the desired size.
 
 #### -m MMAP, --mmap MMAP
-mmap the file (0 | 1)
+mmap the file. Valid values: 0 and 1. Default value: 0. If set to 1, the file will be memory-mapped before reading.
 
 #### -p PREREAD, --preread PREREAD
-preread the file (0 | 1)
+Preread the file. Valid values: 0 and 1. Default value: 0. If set to 1, the file will first be preread completely sequentially by mebibyte chunks.
 
 #### -b BLOAT, --bloat BLOAT
-bloat process memory (0 | 1)
+Bloat process memory. Valid values: 0 and 1. Default value: 0. If set to 1, the chunks will be added to the list and the memory consumed by the process will increase.
 
 #### -c CHUNK, --chunk CHUNK
-chunk size in KiB
+Chunk size in KiB. The file will be read by chunks of the specified size.
 
 #### -i INTERVAL, --interval INTERVAL
-output interval in seconds
+Output (log) interval in seconds. Default value: 2.
 
 #### -l LOG, --log LOG
-path to the log file
+Path to the log file. The output will be written with timestamps.
 
 ## Output examples
 
