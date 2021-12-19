@@ -51,7 +51,7 @@ mmap the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the
 Preread the file. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the file will first be preread completely sequentially by mebibyte chunks.
 
 #### -b BLOAT, --bloat BLOAT
-Bloat process memory. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the chunks will be added to the list and the memory consumed by the process will increase. This option can be used to create memory pressure during tests.
+Bloat process memory. Valid values: `0` and `1`. Default value: `0`. If set to `1`, the chunks will be added to the list and the memory consumed by the process will increase. This option can be used to create memory pressure during tests. If this option is enabled, the `oom_score_adj` of the process will be set to `1000`. Be prepared for possible freezing of the UI with `-b 1`.
 
 #### -c CHUNK, --chunk CHUNK
 Chunk size in KiB. Default value: `64`. The file will be read by chunks of a given size in random order.
@@ -108,7 +108,7 @@ total read 25000.0 MiB in 40.3s (avg 620.5 MiB/s)
 ```
 In the output of the script you can observe the current reading speed, the amount of data read per time interval, the average values during the reading time.
 
-With the `--bloat` option you can investigate the effectiveness of caching when memory is low and the effect of the VM settings on the result:
+With the `--bloat` option you can investigate the effectiveness of caching when available memory is low and the effect of the virtual memory settings on the result:
 ```
 $ cache-bench -r 15000 -i 4 -b 1 -p 1
 starting cache-bench
