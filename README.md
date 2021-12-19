@@ -5,6 +5,10 @@
 
 Explore the impact of virtual memory settings on caching efficiency on Linux systems under memory pressure.
 
+The script reads the specified file in chunks of the specified size in random order (with `--read` option) and logs the result with a specified interval.
+
+Optionally read chunks are added to the list, thus increasing the memory consumption of the process for creating memory pressure and paging.
+
 The script can be used, for example, to assess the impact of virtual memory settings (`vm.swappiness`, `vm.watermark_scale_factor`, Multigenerational LRU Framework etc) on the efficiency of file caching, especially under memory pressure. The script allows you to evaluate the performance of I/O operations under memory pressure.
 
 ## Options
@@ -58,36 +62,80 @@ Output (log) interval in seconds. Default value: `2`.
 #### -l LOG, --log LOG
 Path to the log file. The output will be written with timestamps.
 
-## Output examples
+## Usage
 
+Select or create a file. You can use any existing file (with `--file` option), or create a test file of the desired size with the `--write` option:
 ```
-$ cache-bench -w 200
+$ cache-bench -w 300
 starting cache-bench
   file: testfile.bench
-  file size: 200 MiB
+  file size: 300 MiB
 writing the file...
 fsync...
 OK
 ```
 
+Optionally remove extraneous disk caches. You can use the `drop-caches` script:
 ```
-$ cache-bench --read 8000 --chunk 32 --mmap 1 --preread 1 --bloat 1
-starting cache-bench
-  file: testfile.bench
-  file size: 200.0 MiB
-  log file is not set
-  output interval: 2s
-  mmap: 1, preread: 1, bloat: 1, chunk: 32 KiB
-prereading (caching) the file...
-  preread 200.0 MiB (100.0%) in 1.7s
-reading 8000.0 MiB from the file...
-  read 3053.4M in 2.0s (1526.7M/s); total 3053.4M in 2.0s, avg 1526.7M/s
-  read 3077.7M in 2.0s (1538.9M/s); total 6131.2M in 4.0s, avg 1532.8M/s
-  read 1868.8M in 1.2s (1504.4M/s); total 8000.0M in 5.2s, avg 1526.1M/s
-total read 8000.0 MiB in 5.2s (avg 1526.0 MiB/s)
+$ drop-caches
+#!/bin/sh -v
+sudo sync
+[sudo] password for user:
+echo 3 | sudo tee /proc/sys/vm/drop_caches
+3
 ```
 
-Log file example:
+Run the script with `-r` option. The default behavior is to read the data size specified by the `--read` option in 64k chunks in random order:
+```
+$ cache-bench -r 25000 -i 5
+starting cache-bench
+  file: testfile.bench
+  file size: 300.0 MiB
+  log file is not set
+  output interval: 5.0s
+  mmap: 0, preread: 0, bloat: 0, chunk: 64 KiB
+reading 25000.0 MiB from the file...
+  read 45.0M in 5.0s (9.0M/s); total 45.0M in 5.0s, avg 9.0M/s
+  read 46.9M in 5.0s (9.4M/s); total 91.9M in 10.0s, avg 9.2M/s
+  read 55.6M in 5.0s (11.1M/s); total 147.4M in 15.0s, avg 9.8M/s
+  read 68.5M in 5.0s (13.7M/s); total 215.9M in 20.0s, avg 10.8M/s
+  read 92.4M in 5.0s (18.5M/s); total 308.3M in 25.0s, avg 12.3M/s
+  read 196.2M in 5.0s (39.2M/s); total 504.5M in 30.0s, avg 16.8M/s
+  read 7619.3M in 5.0s (1523.9M/s); total 8123.8M in 35.0s, avg 231.9M/s
+  read 16041.2M in 5.0s (3208.2M/s); total 24165.1M in 40.0s, avg 603.6M/s
+  read 835.0M in 0.3s (3270.5M/s); total 25000.0M in 40.3s, avg 620.5M/s
+total read 25000.0 MiB in 40.3s (avg 620.5 MiB/s)
+```
+In the output of the script you can observe the current reading speed, the amount of data read per time interval, the average values during the reading time.
+
+With the `--bloat` option you can investigate the effectiveness of caching when memory is low and the effect of the VM settings on the result:
+```
+$ cache-bench -r 15000 -i 4 -b 1 -p 1
+starting cache-bench
+  file: testfile.bench
+  file size: 300.0 MiB
+  log file is not set
+  output interval: 4.0s
+  mmap: 0, preread: 1, bloat: 1, chunk: 64 KiB
+prereading (caching) the file...
+  preread 300.0 MiB (100.0%) in 2.6s
+reading 15000.0 MiB from the file...
+  read 7042.6M in 4.0s (1760.7M/s); total 7042.6M in 4.0s, avg 1760.7M/s
+  read 3541.1M in 4.0s (884.7M/s); total 10583.7M in 8.0s, avg 1322.5M/s
+  read 68.6M in 4.0s (17.1M/s); total 10652.4M in 12.0s, avg 886.8M/s
+  read 46.1M in 4.0s (11.5M/s); total 10698.4M in 16.0s, avg 667.8M/s
+  read 51.3M in 4.0s (12.8M/s); total 10749.7M in 20.0s, avg 536.7M/s
+  read 55.8M in 4.0s (13.9M/s); total 10805.5M in 24.0s, avg 449.6M/s
+  read 74.3M in 4.0s (18.6M/s); total 10879.9M in 28.0s, avg 388.0M/s
+  read 99.9M in 4.0s (24.9M/s); total 10979.7M in 32.0s, avg 342.7M/s
+  read 169.5M in 4.0s (42.3M/s); total 11149.2M in 36.0s, avg 309.3M/s
+  read 420.6M in 4.0s (105.1M/s); total 11569.8M in 40.1s, avg 288.9M/s
+  read 2277.9M in 4.0s (569.5M/s); total 13847.7M in 44.1s, avg 314.4M/s
+  read 1152.3M in 1.1s (1042.2M/s); total 15000.0M in 45.2s, avg 332.2M/s
+total read 15000.0 MiB in 45.2s (avg 332.2 MiB/s)
+```
+
+Optionally, you can specify the path to the log file. Log file example:
 ```
 2021-12-18 19:44:14,306: starting cache-bench
 2021-12-18 19:44:14,307:   file: testfile.bench
@@ -103,6 +151,8 @@ Log file example:
 2021-12-18 19:44:21,233:   read 1817.4M in 1.2s (1531.6M/s); total 8000.0M in 5.2s, avg 1542.4M/s
 2021-12-18 19:44:21,233: total read 8000.0 MiB in 5.2s (avg 1542.4 MiB/s)
 ```
+
+During the tests, you can check the state of the system (cache size, memory and io pressure, disk activity etc) using additional tools: `mem2log`, `psi2log`, `iostat`, `vmstat` etc.
 
 ## Requirements
 
@@ -124,10 +174,6 @@ $ sudo make uninstall
 
 ## See also
 
-These tools may be used to monitor memory and PSI metrics during stress tests:
-- [mem2log](https://github.com/hakavlad/mem2log) may be used to log memory metrics from `/proc/meminfo`;
-- [psi2log](https://github.com/hakavlad/nohang/blob/master/docs/psi2log.manpage.md) from [nohang](https://github.com/hakavlad/nohang) package may be used to log [PSI](https://facebookmicrosites.github.io/psi/docs/overview) metrics during tests.
-
 Documentation for `/proc/sys/vm/`:
 - https://www.kernel.org/doc/html/latest/admin-guide/sysctl/vm.html
 
@@ -144,4 +190,8 @@ le9 patch can be used to protect the specified amount of cache:
 Daemons that can affect file reading performance:
 - [prelockd](https://github.com/hakavlad/prelockd): Lock executables and shared libraries in memory to improve system responsiveness under low-memory conditions;
 - [memavaild](https://github.com/hakavlad/memavaild): Keep amount of available memory by evicting memory of selected cgroups into swap space.
+
+These tools may be used to monitor memory and PSI metrics during stress tests:
+- [mem2log](https://github.com/hakavlad/mem2log) may be used to log memory metrics from `/proc/meminfo`;
+- [psi2log](https://github.com/hakavlad/nohang/blob/master/docs/psi2log.manpage.md) from [nohang](https://github.com/hakavlad/nohang) package may be used to log [PSI](https://facebookmicrosites.github.io/psi/docs/overview) metrics during tests.
 
